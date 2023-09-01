@@ -53,7 +53,8 @@ concurrency: deploy
 
 permissions:
   id-token: write   # Required for requesting the JWT
-  contents: write   # Required for ...
+  contents: read   # Required for ...
+  # contents: write   # Required for ...
 
 jobs:
   Evaluate_Inputs:
