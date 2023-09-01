@@ -52,9 +52,8 @@ env:
 concurrency: deploy
 
 permissions:
-  id-token: write   # Required for requesting the JWT
-  contents: read   # Required for ...
-  # contents: write   # Required for ...
+  id-token: write   # Required for requesting the JWT.
+  contents: write   # Required for updating tags.
 
 jobs:
   Evaluate_Inputs:
