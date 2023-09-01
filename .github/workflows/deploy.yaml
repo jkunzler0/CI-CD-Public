@@ -161,7 +161,7 @@ jobs:
           echo "deploy_env=${{ steps.get_inputs.outputs.deploy_env }}"
           echo "tag_increment_type=${{ steps.get_inputs.outputs.tag_increment_type }}"
 
-  Update_Prod_Tags:
+  Update_Production_Tags:
     runs-on: ubuntu-latest
     needs: Evaluate_Inputs
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production' }}
@@ -319,7 +319,7 @@ jobs:
           # password: TODO
           password: ${{ secrets.TEST_PYPI_TOKEN }}
 
-  Deploy_Infra_Production:
+  Deploy_Production_Infra:
     needs: Evaluate_Inputs
     runs-on: ubuntu-latest
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production'}}
@@ -368,7 +368,7 @@ jobs:
 
 
 
-  Deploy_Infra:
+  Deploy_Staging_Infra:
     needs: Evaluate_Inputs
     runs-on: ubuntu-latest
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Staging'}}

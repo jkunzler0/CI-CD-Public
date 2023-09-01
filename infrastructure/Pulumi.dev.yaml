@@ -1,0 +1,3 @@
+config:
+  lb:
+    domain_name: inductor-test-jkunzler.link

@@ -1,0 +1,9 @@
+# Copyright 2022 Inductor, Inc.
+
+name: saas
+runtime:
+  name: python
+description: Inductor SAAS
+
+config:
+  aws_region: us-east-1
