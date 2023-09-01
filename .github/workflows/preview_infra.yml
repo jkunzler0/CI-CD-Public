@@ -1,54 +1,54 @@
-name: Preview Infrastructure
+# name: Preview Infrastructure
 
-on:
-  push:
-    paths:
-      - "infrastructure/**"
-# Consider to switch to pull_request (below) if the above is too spammy.
 # on:
-#   pull_request:
+#   push:
 #     paths:
 #       - "infrastructure/**"
+# # Consider to switch to pull_request (below) if the above is too spammy.
+# # on:
+# #   pull_request:
+# #     paths:
+# #       - "infrastructure/**"
 
-env:
-  PYTHON_VERSION: "3.11.4"
+# env:
+#   PYTHON_VERSION: "3.11.4"
 
-jobs:
-  Pulumi_Preview:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+# jobs:
+#   Pulumi_Preview:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+#       - name: Set up Python ${{ env.PYTHON_VERSION }}
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: ${{ env.PYTHON_VERSION }}
 
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v3
-      #   with:
-      #     role-to-assume: TODO
-      #     aws-region: ${{ env.AWS_REGION }}
+#       # - name: Configure AWS Credentials
+#       #   uses: aws-actions/configure-aws-credentials@v3
+#       #   with:
+#       #     role-to-assume: TODO
+#       #     aws-region: ${{ env.AWS_REGION }}
 
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v3
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-region: ${{ secrets.AWS_REGION }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+#       # - name: Configure AWS Credentials
+#       #   uses: aws-actions/configure-aws-credentials@v3
+#       #   with:
+#       #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#       #     aws-region: ${{ secrets.AWS_REGION }}
+#       #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#       #     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
 
-      - name: Pulumi Preview
-        uses: pulumi/actions@v4.4.0
-        with:
-          command: preview
-          # stack-name: TODO
-          stack-name: jkunzlerind/saas/dev
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+#       - name: Pulumi Preview
+#         uses: pulumi/actions@v4.4.0
+#         with:
+#           command: preview
+#           # stack-name: TODO
+#           stack-name: jkunzlerind/saas/dev
+#         env:
+#           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}

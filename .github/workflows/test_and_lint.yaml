@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: Test and Lint
 
 on: [push]
 
@@ -8,7 +8,7 @@ env:
 jobs:
 
   Lint:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ env.PYTHON_VERSION }}
@@ -24,7 +24,10 @@ jobs:
           pylint $(git ls-files '*.py')
 
   Test:
+    # The latest ubunut runner image (ubuntu-22.04) does not work with the
+    # python:3.11.4-bullseye container image. So we use ubuntu-20.04 instead.
     runs-on: ubuntu-20.04
+    # The container image should match the backend Dockerfile.
     container: python:3.11.4-bullseye
     steps:
       - uses: actions/checkout@v3
@@ -35,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
       - name: Test with pytest
         run: |
           coverage run -m pytest  -v -s
