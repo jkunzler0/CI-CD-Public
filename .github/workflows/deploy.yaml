@@ -280,7 +280,7 @@ jobs:
 
   Publish_CLI:
     runs-on: ubuntu-latest
-    needs: [Evaluate_Inputs, Update_Prod_Tags]
+    needs: [Evaluate_Inputs, Update_Production_Tags]
     if: ${{ needs.Evaluate_Inputs.outputs.cli_flag == 'true' }}
     environment: Production
     steps:
@@ -301,7 +301,7 @@ jobs:
 
       - name: Replace Version
         run: |
-          new_cli_flag=${{ needs.Update_Prod_Tags.outputs.new_cli_tag }}
+          new_cli_flag=${{ needs.Update_Production_Tags.outputs.new_cli_tag }}
           new_version=$(echo "$new_cli_flag" | sed 's/^cli-v//')
           sed -i "s/version = \"[0-9.]*\"/version = \"$new_version\"/" pyproject.toml
           git config --global user.email ${{ github.actor }}@users.noreply.github.com
