@@ -71,10 +71,6 @@ jobs:
       infra_flag: ${{ steps.set_infra_and_cli_flags.outputs.infra_flag }}
       # cli_flag: True if the CLI should be published to PyPI, false otherwise.
       cli_flag: ${{ steps.set_infra_and_cli_flags.outputs.cli_flag }}
-      # stack: Name of the stack to deploy to.
-      stack: ${{ steps.set_stack_and_role_arn.outputs.stack }}
-      # role_arn: ARN of the IAM role to assume for the deployment.
-      role_arn: ${{ steps.set_stack_and_role_arn.outputs.role_arn }}
     steps:
       - name: Get Inputs and Set Defaults
         id: get_inputs
@@ -130,18 +126,6 @@ jobs:
           fi
           echo "infra_flag=$infra_flag" >> "$GITHUB_OUTPUT"
           echo "cli_flag=$cli_flag" >> "$GITHUB_OUTPUT"
-
-      - name: Set Stack Name and IAM Role ARN
-        id: set_stack_and_role_arn
-        run: |
-          deploy_env=${{ steps.get_inputs.outputs.deploy_env }}
-          if [[ "$deploy_env" == "Staging" ]]; then
-            echo "stack=staging-TODO" >> "$GITHUB_OUTPUT"
-            echo "role_arn=staging-TODO" >> "$GITHUB_OUTPUT"
-          else
-            echo "stack=prod-TODO" >> "$GITHUB_OUTPUT"
-            echo "role_arn=prod-TODO" >> "$GITHUB_OUTPUT"
-          fi
       
       - name: Verify Permission to Deploy to Production
         if: ${{ steps.get_inputs.outputs.deploy_env == 'Production' }}
@@ -155,8 +139,6 @@ jobs:
         run: |
           echo "infra_flag=${{ steps.set_infra_and_cli_flags.outputs.infra_flag }}"
           echo "cli_flag=${{ steps.set_infra_and_cli_flags.outputs.cli_flag }}"
-          echo "stack=${{ steps.set_stack_and_role_arn.outputs.stack }}"
-          echo "role_arn=${{ steps.set_stack_and_role_arn.outputs.role_arn }}"
           echo "commit_sha=${{ steps.set_commit_sha.outputs.commit_sha }}"
           echo "deploy_env=${{ steps.get_inputs.outputs.deploy_env }}"
           echo "tag_increment_type=${{ steps.get_inputs.outputs.tag_increment_type }}"
@@ -165,6 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: Evaluate_Inputs
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production' }}
+    environment: Production
     outputs:
       new_cli_tag: ${{ steps.calculate_tags.outputs.new_cli_tag }}
     steps:
@@ -258,6 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: Evaluate_Inputs
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Staging' }}
+    environment: Staging
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -338,17 +322,17 @@ jobs:
       # - name: Configure AWS Credentials
       #   uses: aws-actions/configure-aws-credentials@v3
       #   with:
-      #     role-to-assume: ${{ needs.Evaluate_Inputs.outputs.role_arn }}
+      #     role-to-assume: ${{ vars.AWS_ROLE_ARN }}
       #     aws-region: ${{ env.AWS_REGION }}
 
       # TEMP
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v3
-      #   with:
-      #     aws-region: ${{ env.AWS_REGION }}
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Install Dependencies
         run: |
@@ -361,12 +345,11 @@ jobs:
           # TODO
           # command: up
           command: preview
-          stack-name: ${{ needs.Evaluate_Inputs.outputs.stack }}
+          # This should be the fully qualified stack name (org/project/stack)
+          stack-name: ${{ vars.PULUMI_STACK_NAME }}
           work-dir: ./infrastructure
         env:
             PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
-
 
   Deploy_Staging_Infra:
     needs: Evaluate_Inputs
@@ -384,11 +367,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name:
-        run: |
-          # echo staging secret
-          echo ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
       # - name: Configure AWS Credentials
       #   uses: aws-actions/configure-aws-credentials@v3
       #   with:
@@ -396,26 +374,27 @@ jobs:
       #     aws-region: ${{ env.AWS_REGION }}
 
       # TEMP
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v3
-      #   with:
-      #     aws-region: ${{ env.AWS_REGION }}
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      # - name: Install Dependencies
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     pip install -r requirements.txt
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # - name: Pulumi Up
-      #   uses: pulumi/actions@v4.4.0
-      #   with:
-      #     # TODO
-      #     # command: up
-      #     command: preview
-      #     stack-name: ${{ needs.Evaluate_Inputs.outputs.stack }}
-      #     work-dir: ./infrastructure
-      #   env:
-      #       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      - name: Pulumi Up
+        uses: pulumi/actions@v4.4.0
+        with:
+          # TODO
+          # command: up
+          command: preview
+          # This should be the fully qualified stack name (org/project/stack)
+          stack-name: ${{ vars.PULUMI_STACK_NAME }}
+          work-dir: ./infrastructure
+        env:
+            PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
