@@ -24,12 +24,8 @@ jobs:
           pylint $(git ls-files '*.py')
 
   Test:
-    # The latest ubunut runner image (ubuntu-22.04) does not work with the
-    # python:3.11.4-bullseye container image. So we use ubuntu-20.04 instead.
-    # runs-on: ubuntu-20.04
     runs-on: ubuntu-latest
     # The container image should match the backend Dockerfile.
-    # container: python:3.11.4-bullseye
     container: python:3.11-bookworm
     steps:
       - uses: actions/checkout@v3
