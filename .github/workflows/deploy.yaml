@@ -255,10 +255,10 @@ jobs:
       - name: Update Staging Tag
         run: |
           # Check if the local tag 'staging' exists before attempting to delete it.
-          if git rev-parse --verify staging >/dev/null 2>&1; then
-              git tag -d staging            # Delete the local tag
-              git push origin :refs/tags/staging  # Delete the remote tag
-          fi
+          #   if git rev-parse --verify staging >/dev/null 2>&1; then
+          #       git tag -d staging            # Delete the local tag
+          #       git push origin :refs/tags/staging  # Delete the remote tag
+          #   fi
           git tag -f staging ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
           git push origin staging
 
