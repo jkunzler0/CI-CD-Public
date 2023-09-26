@@ -260,7 +260,7 @@ jobs:
           #       git push origin :refs/tags/staging  # Delete the remote tag
           #   fi
           git tag -f staging ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
-          git push origin staging
+          git push -f origin staging
 
   Publish_CLI:
     runs-on: ubuntu-latest
