@@ -287,7 +287,7 @@ jobs:
         run: |
           new_cli_flag=${{ needs.Update_Production_Tags.outputs.new_cli_tag }}
           new_version=$(echo "$new_cli_flag" | sed 's/^cli-v//')
-          sed -i "s/version = \"[0-9.]*\"/version = \"$new_version\"/" pyproject.toml
+          sed -i "s/version = \"[0-9.]*\"/version = \"$new_version\"/" client/pyproject.toml
           git config --global user.email ${{ github.actor }}@users.noreply.github.com
           git config --global user.name ${{ github.actor }}
           git commit -am "Update CLI PyPI version to $new_version"
