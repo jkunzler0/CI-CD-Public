@@ -29,7 +29,7 @@ on:
         default: Both
         options:
           - Infrastructure
-          - CLI
+          - CLI CLI
           - Both
       tag-increment-type:
         description: >
@@ -112,7 +112,7 @@ jobs:
           if [[ "$release_types" == "Infrastructure" ]]; then
             infra_flag=true
             cli_flag=false
-          elif [[ "$release_types" == "CLI" ]]; then
+          elif [[ "$release_types" == "CLI CLI" ]]; then
             infra_flag=false
             cli_flag=true
           else
