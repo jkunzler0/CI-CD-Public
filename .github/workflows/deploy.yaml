@@ -306,7 +306,9 @@ jobs:
   Deploy_Production_Infra:
     needs: Evaluate_Inputs
     runs-on: ubuntu-latest
-    if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production'}}
+    if: |
+      ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production'}}
+      && ${{ needs.Evaluate_Inputs.outputs.infra_flag == 'true' }}
     environment: Production
     steps:
       - name: Checkout
