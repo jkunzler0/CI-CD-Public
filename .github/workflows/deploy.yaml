@@ -1,37 +1,5 @@
 name: Deploy
 
-# Description: This workflow deploys the infrastructure and client package
-# (i.e., CLI and client library).
-#
-# Events that trigger the workflow:
-# The workflow is triggered by a push to the main branch or by manually being
-# triggered from the Actions tab in the GitHub repository.
-# If triggered by a push to the main branch, it deploys the infrastructure
-# to the staging environment.
-# If triggered by a manual run, the actor (who triggered the workflow) can
-# choose to deploy to the staging or production environment. If deploying to
-# production, the actor can choose to deploy the infrastructure, the client
-# package, or both.
-#
-# Tags:
-# If deploying to staging, the workflow creates/updates the tag "staging" to
-# point to the commit that triggered the workflow or to the commit specified
-# by the actor.
-# If deploying to production, the workflow creates a new tag for the
-# infrastructure and (if publishing the client package) a new tag for the
-# client package. The tag for the infrastructure is in the format "vX.Y.Z" and
-# the tag for the client package is in the format "client-vX.Y.Z". The client
-# package tag is used as the version for the client package
-# when publishing to PyPI.
-# The tags are created by incrementing the latest tag (if it exists) by the
-# tag_increment_type specified by the actor. If the latest tag does not exist,
-# the tag is created with the version "v0.0.0" or "client-v0.3.0" depending on
-# whether infrastructure or client package is being deployed.
-# TODO (https://github.com/inductor-hq/saas/issues/29): The workflow should
-# revert the tag creation if the deployment fails.
-#
-# Inputs: See below.
-
 on:
   push:
     branches:
@@ -54,18 +22,18 @@ on:
           - Production
       release_types:
         description: >
-          Release type(s) to deploy.
+          Release types to deploy.
           Applies only if the deploy environment is "Production".
         type: choice
         required: true
         default: Both
         options:
           - Infrastructure
-          - Client Package
+          - CLI
           - Both
-      tag_increment_type:
+      tag-increment-type:
         description: >
-          Increment type for the new version tag(s).
+          Increment type for the new tag.
           Applies to all selected release types.
           Applies only if the deploy environment is "Production".
         type: choice
@@ -77,14 +45,14 @@ on:
           - Patch
 
 env:
-  PYTHON_VERSION: 3.11.4
+  PYTHON_VERSION: "3.11.4"
   AWS_REGION : us-east-1
 
 # Only allow a single deployment to run at a time.
 concurrency: deploy
 
 permissions:
-  id-token: write   # Required to fetch an OpenID Connect (OIDC) token.
+  id-token: write   # Required for requesting the JWT.
   contents: write   # Required for updating tags.
 
 jobs:
@@ -93,17 +61,16 @@ jobs:
     outputs:
       # commit_sha: Commit SHA to deploy.
       commit_sha: ${{ steps.set_commit_sha.outputs.commit_sha }}
-      # deploy_env: Environment to deploy to. (Staging or Production)
+      # deploy_env: Environment to deploy to. (staging or prod)
       deploy_env: ${{ steps.get_inputs.outputs.deploy_env }}
       # tag_increment_type: Increment type for the potential new tags.
       # (Major, Minor, or Patch)
       tag_increment_type: ${{ steps.get_inputs.outputs.tag_increment_type }}
       # infra_flag: True if the infrastructure should be deployed, false
       # otherwise.
-      infra_flag: ${{ steps.set_infra_and_client_flags.outputs.infra_flag }}
-      # client_flag: True if the client package should be published to PyPI,
-      # false otherwise.
-      client_flag: ${{ steps.set_infra_and_client_flags.outputs.client_flag }}
+      infra_flag: ${{ steps.set_infra_and_cli_flags.outputs.infra_flag }}
+      # cli_flag: True if the CLI should be published to PyPI, false otherwise.
+      cli_flag: ${{ steps.set_infra_and_cli_flags.outputs.cli_flag }}
     steps:
       - name: Get Inputs and Set Defaults
         id: get_inputs
@@ -124,7 +91,7 @@ jobs:
           release_types=${input_release_types:-"Both"}
           echo "release_types=$release_types" >> "$GITHUB_OUTPUT"
 
-          input_tag_increment_type=${{ github.event.inputs.tag_increment_type }}
+          input_tag_increment_type=${{ github.event.inputs.tag-increment-type }}
           tag_increment_type=${input_tag_increment_type:-"Patch"}
           echo "tag_increment_type=$tag_increment_type" >> "$GITHUB_OUTPUT"
 
@@ -138,33 +105,40 @@ jobs:
             echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set Infra and Client Flags
-        id: set_infra_and_client_flags
+      - name: Set Infra and CLI Flags
+        id: set_infra_and_cli_flags
         run: |
           release_types=${{ steps.get_inputs.outputs.release_types }}
           if [[ "$release_types" == "Infrastructure" ]]; then
             infra_flag=true
-            client_flag=false
-          elif [[ "$release_types" == "Client Package" ]]; then
+            cli_flag=false
+          elif [[ "$release_types" == "CLI" ]]; then
             infra_flag=false
-            client_flag=true
+            cli_flag=true
           else
             infra_flag=true
-            client_flag=true
+            cli_flag=true
           fi
           deploy_env=${{ steps.get_inputs.outputs.deploy_env }}
           if [[ "$deploy_env" == "Staging" ]]; then
             infra_flag=true
-            client_flag=false
+            cli_flag=false
           fi
           echo "infra_flag=$infra_flag" >> "$GITHUB_OUTPUT"
-          echo "client_flag=$client_flag" >> "$GITHUB_OUTPUT"
+          echo "cli_flag=$cli_flag" >> "$GITHUB_OUTPUT"
+      
+      - name: Verify Permission to Deploy to Production
+        if: ${{ steps.get_inputs.outputs.deploy_env == 'Production' }}
+        run: |
+          if [[ "${{ github.repository_owner }}" != "${{ github.actor }}" ]]; then
+            echo "The actor (who triggered the workflow) is not the repository owner. Blocking deployment to Production."
+            exit 1
+          fi
       
       - name: Print Outputs
         run: |
-          # For debugging
-          echo "infra_flag=${{ steps.set_infra_and_client_flags.outputs.infra_flag }}"
-          echo "client_flag=${{ steps.set_infra_and_client_flags.outputs.client_flag }}"
+          echo "infra_flag=${{ steps.set_infra_and_cli_flags.outputs.infra_flag }}"
+          echo "cli_flag=${{ steps.set_infra_and_cli_flags.outputs.cli_flag }}"
           echo "commit_sha=${{ steps.set_commit_sha.outputs.commit_sha }}"
           echo "deploy_env=${{ steps.get_inputs.outputs.deploy_env }}"
           echo "tag_increment_type=${{ steps.get_inputs.outputs.tag_increment_type }}"
@@ -175,13 +149,14 @@ jobs:
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Production' }}
     environment: Production
     outputs:
-      new_client_tag: ${{ steps.calculate_tags.outputs.new_client_tag }}
+      new_cli_tag: ${{ steps.calculate_tags.outputs.new_cli_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: "0" # Required to get all tags.
-          # TODO (https://github.com/inductor-hq/saas/issues/30):
+          fetch-depth: "0"
+          # A GitHub PAT with "workflow" scope is required to push tags.
+          # token: TODO
           # token: ${{ secrets.WORKFLOW_TOKEN }}
           ref: ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
 
@@ -190,28 +165,28 @@ jobs:
         run: |
           all_tags=$(git tag -l)
           infra_tags=$(echo "$all_tags" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V)
-          client_tags=$(echo "$all_tags" | grep -E "^client-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V)
+          cli_tags=$(echo "$all_tags" | grep -E "^cli-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V)
 
           latest_infra_tag=$(echo "$infra_tags" | tail -n 1)
-          latest_client_tag=$(echo "$client_tags" | tail -n 1)
+          latest_cli_tag=$(echo "$cli_tags" | tail -n 1)
 
           # For debugging
           echo "infra_tags=$infra_tags"
           echo "latest_infra_tag=$latest_infra_tag"
-          echo "client_tags=$client_tags"
-          echo "latest_client_tag=$latest_client_tag"
+          echo "cli_tags=$cli_tags"
+          echo "latest_cli_tag=$latest_cli_tag"
 
           # If there are no tags, start at v0.0.0
-          # (This will be incremented depending on the tag_increment_type.)
+          # (This will be incremented depending on the tag-increment-type.)
           if [[ -z "$latest_infra_tag" ]]; then
             latest_infra_tag="v0.0.0"
           fi
-          if [[ -z "$latest_client_tag" ]]; then
-            latest_client_tag="client-v0.3.0"
+          if [[ -z "$latest_cli_tag" ]]; then
+            latest_cli_tag="cli-v0.0.0"
           fi
 
           echo "latest_infra_tag=$latest_infra_tag" >> "$GITHUB_OUTPUT"
-          echo "latest_client_tag=$latest_client_tag" >> "$GITHUB_OUTPUT"
+          echo "latest_cli_tag=$latest_cli_tag" >> "$GITHUB_OUTPUT"
   
       - name: Calculate New Tags
         id: calculate_tags
@@ -219,30 +194,30 @@ jobs:
           tag_increment_type="${{ needs.Evaluate_Inputs.outputs.tag_increment_type }}"
 
           latest_infra_tag="${{ steps.get_tags.outputs.latest_infra_tag }}"
-          latest_client_tag="${{ steps.get_tags.outputs.latest_client_tag }}"
+          latest_cli_tag="${{ steps.get_tags.outputs.latest_cli_tag }}"
 
-          # Remove the leading "v" from the infra tag and the leading "client-v"
-          # from the client tag.
+          # Remove the leading "v" from the infra tag and the leading "cli-v"
+          # from the cli tag
           infra_tag=$(echo "$latest_infra_tag" | sed 's/^v//')
-          client_tag=$(echo "$latest_client_tag" | sed 's/^client-v//')
+          cli_tag=$(echo "$latest_cli_tag" | sed 's/^cli-v//')
 
-          # Increment the tag depending on the tag_increment_type.
+          # Increment the tag depending on the tag-increment-type.
           case "$tag_increment_type" in
             Major) infra_tag=$(echo "$infra_tag" | awk -F. '{$1++; print $1".0.0"}') ;;
             Minor) infra_tag=$(echo "$infra_tag" | awk -F. '{$2++; print $1"."$2".0"}') ;;
             Patch) infra_tag=$(echo "$infra_tag" | awk -F. '{$3++; print $1"."$2"."$3}') ;;
           esac
           case "$tag_increment_type" in
-            Major) client_tag=$(echo "$client_tag" | awk -F. '{$1++; print $1".0.0"}') ;;
-            Minor) client_tag=$(echo "$client_tag" | awk -F. '{$2++; print $1"."$2".0"}') ;;
-            Patch) client_tag=$(echo "$client_tag" | awk -F. '{$3++; print $1"."$2"."$3}') ;;
+            Major) cli_tag=$(echo "$cli_tag" | awk -F. '{$1++; print $1".0.0"}') ;;
+            Minor) cli_tag=$(echo "$cli_tag" | awk -F. '{$2++; print $1"."$2".0"}') ;;
+            Patch) cli_tag=$(echo "$cli_tag" | awk -F. '{$3++; print $1"."$2"."$3}') ;;
           esac
 
           new_infra_tag="v$infra_tag"
-          new_client_tag="client-v$client_tag"
+          new_cli_tag="cli-v$cli_tag"
 
           echo "new_infra_tag=$new_infra_tag" >> "$GITHUB_OUTPUT"
-          echo "new_client_tag=$new_client_tag" >> "$GITHUB_OUTPUT"
+          echo "new_cli_tag=$new_cli_tag" >> "$GITHUB_OUTPUT"
 
       - name: Create New Infra Tag
         id: create_infra_tag
@@ -253,16 +228,16 @@ jobs:
           git push origin "$new_tag"
           echo "new_infra_tag=$new_tag"
       
-      - name: Create New Client Package Tag
-        id: create_client_tag
-        if: ${{ needs.Evaluate_Inputs.outputs.client_flag == 'true' }}
+      - name: Create New CLI Tag
+        id: create_cli_tag
+        if: ${{ needs.Evaluate_Inputs.outputs.cli_flag == 'true' }}
         run: |
-          new_tag="${{ steps.calculate_tags.outputs.new_client_tag }}"
+          new_tag="${{ steps.calculate_tags.outputs.new_cli_tag }}"
           git tag "$new_tag" ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
           git push origin "$new_tag"
-          echo "new_client_tag=$new_tag"
+          echo "new_cli_tag=$new_tag"
 
-  Update_Staging_Tag:
+  Update_Staging_Tags:
     runs-on: ubuntu-latest
     needs: Evaluate_Inputs
     if: ${{ needs.Evaluate_Inputs.outputs.deploy_env == 'Staging' }}
@@ -271,20 +246,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: "0" # Required to get all tags.
-          # TODO (https://github.com/inductor-hq/saas/issues/30):
+          fetch-depth: "0"
+          # A GitHub PAT with "workflow" scope is required to push tags.
+          # token: TODO
           # token: ${{ secrets.WORKFLOW_TOKEN }}
           ref: ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
 
       - name: Update Staging Tag
         run: |
+          # Check if the local tag 'staging' exists before attempting to delete it.
+          #   if git rev-parse --verify staging >/dev/null 2>&1; then
+          #       git tag -d staging            # Delete the local tag
+          #       git push origin :refs/tags/staging  # Delete the remote tag
+          #   fi
           git tag -f staging ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
           git push -f origin staging
 
-  Publish_Client_Package:
+  Publish_CLI:
     runs-on: ubuntu-latest
     needs: [Evaluate_Inputs, Update_Production_Tags]
-    if: ${{ needs.Evaluate_Inputs.outputs.client_flag == 'true' }}
+    if: ${{ needs.Evaluate_Inputs.outputs.cli_flag == 'true' }}
     environment: Production
     steps:
       - name: Checkout
@@ -293,7 +274,7 @@ jobs:
           ref: ${{ needs.Evaluate_Inputs.outputs.commit_sha }}
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -304,12 +285,12 @@ jobs:
 
       - name: Replace Version
         run: |
-          new_client_tag=${{ needs.Update_Production_Tags.outputs.new_client_tag }}
-          new_version=$(echo "$new_client_tag" | sed 's/^client-v//')
-          sed -i -e "s/^version = \"[0-9.]*\"$/version = \"$new_version\"/" client/pyproject.toml
+          new_cli_flag=${{ needs.Update_Production_Tags.outputs.new_cli_tag }}
+          new_version=$(echo "$new_cli_flag" | sed 's/^cli-v//')
+          sed -i "s/version = \"[0-9.]*\"/version = \"$new_version\"/" client/pyproject.toml
           git config --global user.email ${{ github.actor }}@users.noreply.github.com
           git config --global user.name ${{ github.actor }}
-          git commit -am "Update client package PyPI version to $new_version"
+          git commit -am "Update CLI PyPI version to $new_version"
           git push origin HEAD:${{ github.ref }}
 
       - name: Build package
@@ -319,7 +300,8 @@ jobs:
         uses: pypa/gh-action-pypi-publish@v1.8.10
         with:
           user: __token__
-          password: ${{ secrets.PYPI_TOKEN }}
+          # password: TODO
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
 
   Deploy_Production_Infra:
     needs: Evaluate_Inputs
@@ -337,29 +319,37 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v3
+      #   with:
+      #     role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+      #     aws-region: ${{ env.AWS_REGION }}
+
+      # TEMP
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          ./pip_install.sh development
+          pip install -r requirements.txt
 
       - name: Pulumi Up
         uses: pulumi/actions@v4.4.0
         with:
-          command: up
+          # TODO
+          # command: up
+          command: preview
           # This should be the fully qualified stack name (org/project/stack)
           stack-name: ${{ vars.PULUMI_STACK_NAME }}
           work-dir: ./infrastructure
         env:
             PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-            AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN_PULUMI_APP }}
-            AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID_PULUMI_APP }}
-            AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET_PULUMI_APP }}
 
   Deploy_Staging_Infra:
     needs: Evaluate_Inputs
@@ -377,11 +367,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v3
+      #   with:
+      #     role-to-assume: ${{ needs.Evaluate_Inputs.outputs.role_arn }}
+      #     aws-region: ${{ env.AWS_REGION }}
+
+      # TEMP
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Install Dependencies
         run: |
@@ -391,12 +390,11 @@ jobs:
       - name: Pulumi Up
         uses: pulumi/actions@v4.4.0
         with:
-          command: up
+          # TODO
+          # command: up
+          command: preview
           # This should be the fully qualified stack name (org/project/stack)
           stack-name: ${{ vars.PULUMI_STACK_NAME }}
           work-dir: ./infrastructure
         env:
             PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-            AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN_PULUMI_APP }}
-            AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID_PULUMI_APP }}
-            AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET_PULUMI_APP }}
