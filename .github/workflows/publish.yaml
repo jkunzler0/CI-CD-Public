@@ -1,0 +1,133 @@
+name: Publish Self-hosted Server
+
+# Description: This workflow publishes a Docker image of Inductor's server to
+# one or more container registries, in order to make the image available for
+# customers who opt to self-host Inductor.
+#
+# Events that trigger the workflow:
+# This workflow is only triggered by a manual run from the Actions tab.
+# The actor (who triggered the workflow) can choose to publish to the
+# staging or production environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_env:
+        description: Environment to publish to.
+        type: choice
+        required: true
+        default: Staging
+        options:
+          - Staging
+          - Production
+      repository_name:
+        description: Name of the container repository to publish to.
+        type: choice
+        required: true
+        default: inductor_server_images_linux_x86_64
+        options:
+          - inductor_server_images_linux_x86_64
+
+env:
+  PYTHON_VERSION: 3.11.4
+  AWS_REGION : us-east-1
+  PULUMI_WORKDIR: ./infrastructure/publish_server
+
+# Only allow a single server publish to run at a time.
+concurrency: publish_server
+
+permissions:
+  id-token: write   # Required to fetch an OpenID Connect (OIDC) token.
+  contents: read    # Required for reading code repository and its tags.
+
+jobs:
+
+#   Get_Tag_To_Publish:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       tag_to_publish: ${{ steps.get_tags.outputs.tag_to_publish }}
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
+#         with:
+#           fetch-depth: "0" # Required to get all tags.
+#       - name: Get Tags
+#         id: get_tags
+#         run: |
+#           publish_env=${{ github.event.inputs.publish_env }}
+#           if [ "$publish_env" == "Staging" ]; then
+#             echo "tag_to_publish=staging" >> "$GITHUB_OUTPUT"
+#           else
+#             all_tags=$(git tag -l)
+#             infra_tags=$(echo "$all_tags" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V)
+#             latest_infra_tag=$(echo "$infra_tags" | tail -n 1)
+#             echo "tag_to_publish=$latest_infra_tag" >> "$GITHUB_OUTPUT"
+#           fi
+#       - name: Print Outputs
+#         run: |
+#           # For debugging
+#           echo "tag_to_publish=${{ steps.get_tags.outputs.tag_to_publish }}"
+
+  Publish_Staging_Server:
+    runs-on: ubuntu-latest
+    # needs: Get_Tag_To_Publish
+    if: ${{ github.event.inputs.publish_env == 'Staging'}}
+    environment: Staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        # Checkout with a tag is unnecessary for staging, but it is included
+        # for consistency with the production job. Note that there is a
+        # potential race condition here if the tag is being updated while this
+        # job is running.
+        # with:
+        #   ref: ${{ needs.Get_Tag_To_Publish.outputs.tag_to_publish }}
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Set PYTHONPATH
+        run: |
+          echo "PYTHONPATH=$PYTHONPATH:./infrastructure" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pulumi Up
+        uses: pulumi/actions@v4.4.0
+        with:
+          command: up
+          # This should be the fully qualified stack name (org/project/stack)
+          stack-name: ${{ vars.PULUMI_STACK_NAME_PUBLISH_SELF_HOSTED_SERVER }}
+          work-dir: ${{ env.PULUMI_WORKDIR }}
+        env:
+            PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+            AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN_PULUMI_APP }}
+            AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID_PULUMI_APP }}
+            AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET_PULUMI_APP }}
+
+      - name: Retag Pushed Image
+        run: |
+          # Note that retagging is not strictly necessary for staging, but it
+          # is included to test the retagging process.
+          # Retag the latest image in the repository with the tag to publish.
+          repository_name=${{ github.event.inputs.repository_name }}
+        #   tag_to_publish=${{ needs.Get_Tag_To_Publish.outputs.tag_to_publish }}
+          tag_to_publish=staging
+
+          MANIFEST=$(aws ecr batch-get-image --repository-name $repository_name --image-ids imageTag=latest --output text --query 'images[].imageManifest')
+          aws ecr put-image --repository-name $repository_name --image-tag $tag_to_publish --image-manifest "$MANIFEST"
+
+          # For debugging
+          echo "Images in $repository_name:"
+          aws ecr describe-images --repository-name $repository_name
