@@ -91,6 +91,7 @@ jobs:
       - name: Set PYTHONPATH
         run: |
           echo "PYTHONPATH=$PYTHONPATH:./infrastructure" >> $GITHUB_ENV
+          echo "PYTHONPATH=$PYTHONPATH:infrastructure" >> $GITHUB_ENV
 
     #   - name: Configure AWS Credentials
     #     uses: aws-actions/configure-aws-credentials@v3
