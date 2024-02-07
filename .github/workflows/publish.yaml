@@ -92,11 +92,11 @@ jobs:
         run: |
           echo "PYTHONPATH=$PYTHONPATH:./infrastructure" >> $GITHUB_ENV
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+    #   - name: Configure AWS Credentials
+    #     uses: aws-actions/configure-aws-credentials@v3
+    #     with:
+    #       role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+    #       aws-region: ${{ env.AWS_REGION }}
 
       - name: Install Dependencies
         run: |
@@ -112,9 +112,9 @@ jobs:
           work-dir: ${{ env.PULUMI_WORKDIR }}
         env:
             PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-            AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN_PULUMI_APP }}
-            AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID_PULUMI_APP }}
-            AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET_PULUMI_APP }}
+            # AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN_PULUMI_APP }}
+            # AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID_PULUMI_APP }}
+            # AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET_PULUMI_APP }}
 
       - name: Retag Pushed Image
         run: |
