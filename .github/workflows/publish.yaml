@@ -122,7 +122,6 @@ jobs:
           # is included to test the retagging process.
           # Retag the latest image in the repository with the tag to publish.
           repository_name=${{ github.event.inputs.repository_name }}
-        #   tag_to_publish=${{ needs.Get_Tag_To_Publish.outputs.tag_to_publish }}
           tag_to_publish=staging
 
           MANIFEST=$(aws ecr batch-get-image --repository-name $repository_name --image-ids imageTag=latest --output text --query 'images[].imageManifest')
