@@ -15,6 +15,6 @@ import sys
 # sys.path.append(str(parent_dir))
 # print(str(parent_dir))
 
-# import config  # pylint: disable=wrong-import-order,wrong-import-position
+import config  # pylint: disable=wrong-import-order,wrong-import-position
 
 from infrastructure import config
